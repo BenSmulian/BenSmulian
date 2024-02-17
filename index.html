@@ -24,7 +24,9 @@
         </select>
         <button onclick="fillCanvas()">Fill</button>
         <button onclick="toggleBrush()" id="brushToggle">Brush</button>
-        <button onclick="saveImage()">Save</button>
+        <button onclick="undo()">Undo</button>
+        <button onclick="redo()">Redo</button>
+        <!-- Add Undo and Redo buttons -->
     </div>
     <script>
         var canvas = document.getElementById('drawingCanvas');
@@ -38,6 +40,7 @@
         var brushShape = 'round';
         var drawingHistory = [];
         var redoHistory = [];
+        var touches = [];
 
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('touchstart', startDrawing);

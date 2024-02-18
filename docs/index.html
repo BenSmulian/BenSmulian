@@ -7,6 +7,7 @@
     <style>
         canvas {
             border: 1px solid black;
+            touch-action: none;
         }
     </style>
 </head>
@@ -22,7 +23,6 @@
             <option value="round">Round</option>
             <option value="square">Square</option>
         </select>
-        <button onclick="fillCanvas()">Fill</button>
         <button onclick="toggleBrush()" id="brushToggle">Brush</button>
         <button onclick="undo()">Undo</button>
         <button onclick="redo()">Redo</button>
@@ -40,26 +40,31 @@
         var brushShape = 'round';
         var drawingHistory = [];
         var redoHistory = [];
+        var scale = 1; // Initial scale
 
         canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('touchstart', handleTouchStart);
+        canvas.addEventListener('touchmove', handleTouchMove);
+        canvas.addEventListener('touchend', handleTouchEnd);
+
+        // Additional event listeners for pen input
+        canvas.addEventListener('pointerdown', startDrawing);
+        canvas.addEventListener('pointermove', draw);
+        canvas.addEventListener('pointerup', stopDrawing);
+
+        // Event listener for pinch zoom
+        canvas.addEventListener('gesturechange', handleGestureChange);
 
         function startDrawing(e) {
-            e.preventDefault();
-            if (e.ctrlKey) {
-                fillCanvas(e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY, color);
-            } else {
-                isDrawing = true;
-                [lastX, lastY] = [e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY];
-                saveState();
-            }
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY];
+            saveState();
         }
 
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchmove', draw);
-
         function draw(e) {
-            e.preventDefault();
+            e.preventDefault(); // Prevent scrolling on touch devices
             if (isDrawing) {
                 var x = e.offsetX || e.touches[0].clientX;
                 var y = e.offsetY || e.touches[0].clientY;
@@ -75,9 +80,6 @@
                 lastY = y;
             }
         }
-
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('touchend', stopDrawing);
 
         function stopDrawing() {
             isDrawing = false;
@@ -146,93 +148,38 @@
             }
         }
 
-        function fillCanvas(x, y, fillColor) {
-            if (!fillColor) {
-                console.error('Invalid color');
-                return;
-            }
-            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            var startIdx = (y * canvas.width + x) * 4;
-            var startColor = [imageData.data[startIdx], imageData.data[startIdx + 1], imageData.data[startIdx + 2], imageData.data[startIdx + 3]];
-            var targetColor = hexToRgb(fillColor);
-            if (!targetColor) {
-                console.error('Invalid color format');
-                return;
-            }
-            if (!colorsMatch(startColor, targetColor)) {
-                floodFill(imageData, startIdx, startColor, targetColor);
-                ctx.putImageData(imageData, 0, 0);
-                saveState();
-            }
-        }
-
-        function floodFill(imageData, startIdx, startColor, targetColor) {
-            var stack = [startIdx];
-            while (stack.length > 0) {
-                var currentIdx = stack.pop();
-                if (colorsMatch(startColor, targetColor)) continue;
-                if (colorsMatch(getColorAtIdx(imageData, currentIdx), startColor)) {
-                    setColorAtIdx(imageData, currentIdx, targetColor);
-                    var neighbors = getNeighbors(currentIdx);
-                    stack = stack.concat(neighbors.filter(function(neighborIdx) {
-                        return colorsMatch(getColorAtIdx(imageData, neighborIdx), startColor);
-                    }));
-                }
-            }
-        }
-
-        function getColorAtIdx(imageData, idx) {
-            var pixelOffset = idx * 4;
-            return [
-                imageData.data[pixelOffset],
-                imageData.data[pixelOffset + 1],
-                imageData.data[pixelOffset + 2],
-                imageData.data[pixelOffset + 3]
-            ];
-        }
-
-        function setColorAtIdx(imageData, idx, color) {
-            var pixelOffset = idx * 4;
-            imageData.data[pixelOffset] = color[0];
-            imageData.data[pixelOffset + 1] = color[1];
-            imageData.data[pixelOffset + 2] = color[2];
-            imageData.data[pixelOffset + 3] = color[3];
-        }
-
-        function getNeighbors(idx) {
-            var neighbors = [];
-            var x = idx % canvas.width;
-            var y = Math.floor(idx / canvas.width);
-            if (x > 0) neighbors.push(idx - 1);
-            if (x < canvas.width - 1) neighbors.push(idx + 1);
-            if (y > 0) neighbors.push(idx - canvas.width);
-            if (y < canvas.height - 1) neighbors.push(idx + canvas.width);
-            return neighbors;
-        }
-
-        function colorsMatch(color1, color2) {
-            return color1[0] === color2[0] && color1[1] === color2[1] && color1[2] === color2[2] && color1[3] === color2[3];
-        }
-
-        function hexToRgb(hex) {
-            var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
-                return r + r + g + g + b + b;
-            });
-            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? [
-                parseInt(result[1], 16),
-                parseInt(result[2], 16),
-                parseInt(result[3], 16),
-                255
-            ] : null;
-        }
-
         function saveImage() {
+            var fileName = prompt("Enter file name:");
+            if (!fileName) return; // If canceled
             var link = document.createElement('a');
-            link.download = 'drawing.png';
+            link.download = fileName + '.png';
             link.href = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
             link.click();
+        }
+
+        function handleTouchStart(e) {
+            if (e.touches.length === 1) {
+                startDrawing(e.touches[0]);
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (e.touches.length === 1 && isDrawing) {
+                draw(e.touches[0]);
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (e.touches.length === 0) {
+                stopDrawing();
+            }
+        }
+
+        function handleGestureChange(e) {
+            e.preventDefault();
+            scale *= e.scale; // Adjust scale based on the pinch gesture
+            // Apply the scale to the canvas
+            canvas.style.transform = `scale(${scale})`;
         }
     </script>
 </body>

@@ -3,237 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drawing System</title>
+    <title>Canvas Zoom with Drawing</title>
     <style>
         canvas {
             border: 1px solid black;
+            touch-action: none; /* Disable default touch gestures */
+        }
+        #colors {
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <canvas id="drawingCanvas" width="800" height="600"></canvas>
-    <div>
-        <label for="color">Color:</label>
+    <canvas id="myCanvas" width="400" height="400"></canvas>
+    <div id="colors">
         <input type="color" id="colorPicker">
-        <label for="size">Size:</label>
-        <input type="range" id="sizeRange" min="1" max="20" value="2">
-        <label for="brushShape">Brush Shape:</label>
-        <select id="brushShape">
-            <option value="round">Round</option>
-            <option value="square">Square</option>
-        </select>
-        <button onclick="fillCanvas()">Fill</button>
-        <button onclick="toggleBrush()" id="brushToggle">Brush</button>
+        <button onclick="erase()">Erase</button>
         <button onclick="undo()">Undo</button>
         <button onclick="redo()">Redo</button>
-        <!-- Add Undo and Redo buttons -->
+        <button onclick="save()">Save</button>
     </div>
+
     <script>
-        var canvas = document.getElementById('drawingCanvas');
-        var ctx = canvas.getContext('2d');
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        let scale = 1;
+        let history = [];
+        let future = [];
 
-        var isDrawing = false;
-        var lastX = 0;
-        var lastY = 0;
-        var color = '#000000';
-        var size = 2;
-        var brushShape = 'round';
-        var drawingHistory = [];
-        var redoHistory = [];
-        var touches = [];
+        // Initial draw
+        draw();
 
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('touchstart', startDrawing);
-
-        function startDrawing(e) {
-            e.preventDefault();
-            if (e.ctrlKey) {
-                fillCanvas(e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY, color);
-            } else {
-                isDrawing = true;
-                [lastX, lastY] = [e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY];
-                saveState();
-            }
+        // Function to draw something on the canvas
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'red';
+            ctx.fillRect(100 * scale, 100 * scale, 100 * scale, 100 * scale);
+            history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
         }
 
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchmove', draw);
+        // Pinch to zoom
+        let lastDistance = 0;
 
-        function draw(e) {
-            e.preventDefault();
-            if (isDrawing) {
-                var x = e.offsetX || e.touches[0].clientX;
-                var y = e.offsetY || e.touches[0].clientY;
-                ctx.strokeStyle = color;
-                ctx.lineWidth = size;
-                ctx.lineCap = brushShape;
-                ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(lastX, lastY);
-                ctx.lineTo(x, y);
-                ctx.stroke();
-                lastX = x;
-                lastY = y;
-            }
-        }
-
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('touchend', stopDrawing);
-
-        function stopDrawing() {
-            isDrawing = false;
-        }
-
-        document.getElementById('colorPicker').addEventListener('input', function() {
-            color = this.value;
-        });
-
-        document.getElementById('sizeRange').addEventListener('input', function() {
-            size = parseInt(this.value);
-        });
-
-        document.getElementById('brushShape').addEventListener('change', function() {
-            brushShape = this.value;
-        });
-
-        function toggleBrush() {
-            if (color === '#ffffff') {
-                color = '#000000';
-                document.getElementById('brushToggle').innerText = 'Eraser';
-            } else {
-                color = '#ffffff';
-                document.getElementById('brushToggle').innerText = 'Brush';
-            }
-        }
-
-        function saveState() {
-            drawingHistory.push(canvas.toDataURL());
-            redoHistory = [];
-        }
-
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'z') {
-                e.preventDefault();
-                undo();
-            } else if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
-                e.preventDefault();
-                redo();
+        canvas.addEventListener('touchstart', function (e) {
+            if (e.touches.length === 2) {
+                lastDistance = getPinchDistance(e.touches[0], e.touches[1]);
             }
         });
 
+        canvas.addEventListener('touchmove', function (e) {
+            if (e.touches.length === 2) {
+                const distance = getPinchDistance(e.touches[0], e.touches[1]);
+                const delta = distance - lastDistance;
+                const sensitivity = 0.01; // Adjust sensitivity as needed
+
+                scale += delta * sensitivity;
+                scale = Math.max(0.1, scale); // Prevent zooming out too much
+
+                draw();
+                lastDistance = distance;
+            }
+        });
+
+        function getPinchDistance(touch1, touch2) {
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Erase function
+        function erase() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Undo function
         function undo() {
-            if (drawingHistory.length > 1) {
-                redoHistory.push(drawingHistory.pop());
-                var lastState = drawingHistory[drawingHistory.length - 1];
-                var img = new Image();
-                img.onload = function() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                };
-                img.src = lastState;
+            if (history.length > 1) {
+                future.push(history.pop());
+                ctx.putImageData(history[history.length - 1], 0, 0);
             }
         }
 
+        // Redo function
         function redo() {
-            if (redoHistory.length > 0) {
-                var redoState = redoHistory.pop();
-                drawingHistory.push(redoState);
-                var img = new Image();
-                img.onload = function() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                };
-                img.src = redoState;
+            if (future.length > 0) {
+                history.push(future.pop());
+                ctx.putImageData(history[history.length - 1], 0, 0);
             }
         }
 
-        function fillCanvas(x, y, fillColor) {
-            if (!fillColor) {
-                console.error('Invalid color');
-                return;
-            }
-            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            var startIdx = (y * canvas.width + x) * 4;
-            var startColor = [imageData.data[startIdx], imageData.data[startIdx + 1], imageData.data[startIdx + 2], imageData.data[startIdx + 3]];
-            var targetColor = hexToRgb(fillColor);
-            if (!targetColor) {
-                console.error('Invalid color format');
-                return;
-            }
-            if (!colorsMatch(startColor, targetColor)) {
-                floodFill(imageData, startIdx, startColor, targetColor);
-                ctx.putImageData(imageData, 0, 0);
-                saveState();
-            }
-        }
-
-        function floodFill(imageData, startIdx, startColor, targetColor) {
-            var stack = [startIdx];
-            while (stack.length > 0) {
-                var currentIdx = stack.pop();
-                if (colorsMatch(startColor, targetColor)) continue;
-                if (colorsMatch(getColorAtIdx(imageData, currentIdx), startColor)) {
-                    setColorAtIdx(imageData, currentIdx, targetColor);
-                    var neighbors = getNeighbors(currentIdx);
-                    stack = stack.concat(neighbors.filter(function(neighborIdx) {
-                        return colorsMatch(getColorAtIdx(imageData, neighborIdx), startColor);
-                    }));
-                }
-            }
-        }
-
-        function getColorAtIdx(imageData, idx) {
-            var pixelOffset = idx * 4;
-            return [
-                imageData.data[pixelOffset],
-                imageData.data[pixelOffset + 1],
-                imageData.data[pixelOffset + 2],
-                imageData.data[pixelOffset + 3]
-            ];
-        }
-
-        function setColorAtIdx(imageData, idx, color) {
-            var pixelOffset = idx * 4;
-            imageData.data[pixelOffset] = color[0];
-            imageData.data[pixelOffset + 1] = color[1];
-            imageData.data[pixelOffset + 2] = color[2];
-            imageData.data[pixelOffset + 3] = color[3];
-        }
-
-        function getNeighbors(idx) {
-            var neighbors = [];
-            var x = idx % canvas.width;
-            var y = Math.floor(idx / canvas.width);
-            if (x > 0) neighbors.push(idx - 1);
-            if (x < canvas.width - 1) neighbors.push(idx + 1);
-            if (y > 0) neighbors.push(idx - canvas.width);
-            if (y < canvas.height - 1) neighbors.push(idx + canvas.width);
-            return neighbors;
-        }
-
-        function colorsMatch(color1, color2) {
-            return color1[0] === color2[0] && color1[1] === color2[1] && color1[2] === color2[2] && color1[3] === color2[3];
-        }
-
-        function hexToRgb(hex) {
-            var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
-                return r + r + g + g + b + b;
-            });
-            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? [
-                parseInt(result[1], 16),
-                parseInt(result[2], 16),
-                parseInt(result[3], 16),
-                255
-            ] : null;
-        }
-
-        function saveImage() {
-            var link = document.createElement('a');
-            link.download = 'drawing.png';
-            link.href = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
-            link.click();
+        // Save function
+        function save() {
+            const dataURL = canvas.toDataURL();
+            const a = document.createElement('a');
+            a.href = dataURL;
+            a.download = 'canvas_image.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
     </script>
 </body>

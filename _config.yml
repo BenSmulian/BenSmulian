@@ -1,0 +1,14 @@
+# Site settings
+title: Your Site Title
+description: Your site's description
+baseurl: "" # the subpath of your site, e.g. /blog/
+url: "https://yourdomain.com" # the base hostname & protocol for your site
+
+# Build settings
+theme: jekyll-theme-primer # Change this to your preferred theme
+plugins:
+  - jekyll-feed
+
+# Sass configuration
+sass:
+  sass_dir: assets/css

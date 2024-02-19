@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Drawing System</title>
     <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
         canvas {
             border: 1px solid black;
             touch-action: none;
@@ -58,26 +63,30 @@
         canvas.addEventListener('gesturechange', handleGestureChange);
 
         function startDrawing(e) {
-            isDrawing = true;
-            [lastX, lastY] = [e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY];
-            saveState();
+            if (!isPinching(e)) {
+                isDrawing = true;
+                [lastX, lastY] = [e.offsetX || e.touches[0].clientX, e.offsetY || e.touches[0].clientY];
+                saveState();
+            }
         }
 
         function draw(e) {
-            e.preventDefault(); // Prevent scrolling on touch devices
-            if (isDrawing) {
-                var x = e.offsetX || e.touches[0].clientX;
-                var y = e.offsetY || e.touches[0].clientY;
-                ctx.strokeStyle = color;
-                ctx.lineWidth = size;
-                ctx.lineCap = brushShape;
-                ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(lastX, lastY);
-                ctx.lineTo(x, y);
-                ctx.stroke();
-                lastX = x;
-                lastY = y;
+            if (!isPinching(e)) {
+                e.preventDefault(); // Prevent scrolling on touch devices
+                if (isDrawing) {
+                    var x = e.offsetX || e.touches[0].clientX;
+                    var y = e.offsetY || e.touches[0].clientY;
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = size;
+                    ctx.lineCap = brushShape;
+                    ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    lastX = x;
+                    lastY = y;
+                }
             }
         }
 
@@ -178,8 +187,12 @@
         function handleGestureChange(e) {
             e.preventDefault();
             scale *= e.scale; // Adjust scale based on the pinch gesture
-            // Apply the scale to the canvas
+            scale = Math.max(0.1, Math.min(scale, 10)); // Limit scale to a range
             canvas.style.transform = `scale(${scale})`;
+        }
+
+        function isPinching(e) {
+            return e.touches && e.touches.length > 1;
         }
     </script>
 </body>

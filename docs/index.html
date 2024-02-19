@@ -46,6 +46,8 @@
         var drawingHistory = [];
         var redoHistory = [];
         var scale = 1; // Initial scale
+        var pinchStartDistance = 0;
+        var initialScale = 1;
 
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
@@ -60,7 +62,8 @@
         canvas.addEventListener('pointerup', stopDrawing);
 
         // Event listener for pinch zoom
-        canvas.addEventListener('gesturechange', handleGestureChange);
+        canvas.addEventListener('touchstart', handlePinchStart);
+        canvas.addEventListener('touchmove', handlePinchMove);
 
         function startDrawing(e) {
             if (!isPinching(e)) {
@@ -184,15 +187,30 @@
             }
         }
 
-        function handleGestureChange(e) {
-            e.preventDefault();
-            scale *= e.scale; // Adjust scale based on the pinch gesture
-            scale = Math.max(0.1, Math.min(scale, 10)); // Limit scale to a range
-            canvas.style.transform = `scale(${scale})`;
+        function handlePinchStart(e) {
+            if (e.touches.length === 2) {
+                pinchStartDistance = getDistanceBetweenTouches(e.touches[0], e.touches[1]);
+                initialScale = scale;
+            }
+        }
+
+        function handlePinchMove(e) {
+            if (e.touches.length === 2) {
+                var pinchMoveDistance = getDistanceBetweenTouches(e.touches[0], e.touches[1]);
+                scale = initialScale * (pinchMoveDistance / pinchStartDistance);
+                scale = Math.max(0.1, Math.min(scale, 10)); // Limit scale to a range
+                canvas.style.transform = `scale(${scale})`;
+            }
+        }
+
+        function getDistanceBetweenTouches(touch1, touch2) {
+            var dx = touch2.clientX - touch1.clientX;
+            var dy = touch2.clientY - touch1.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
         }
 
         function isPinching(e) {
-            return e.touches && e.touches.length > 1;
+            return e.touches && e.touches.length === 2;
         }
     </script>
 </body>
